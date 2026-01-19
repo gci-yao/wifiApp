@@ -1,0 +1,113 @@
+Flux complet : Backend → MikroTik → App
+1️⃣ L’utilisateur initie le paiement
+
+L’utilisateur ouvre l’app et entre son numéro de téléphone.
+
+Il choisit 200F / 400F.
+
+L’app fait un POST sur le backend Django :
+
+POST /api/payment/init_wave/
+Content-Type: application/json
+{
+  "phone": "0700000000",
+  "amount": 200
+}
+
+
+Backend crée un Payment en statut PENDING et génère un MAC unique pour ce téléphone.
+
+Backend renvoie le lien Wave (wave_url) à l’app.
+
+2️⃣ L’utilisateur est redirigé vers Wave
+
+L’utilisateur voit la page Wave pour effectuer le paiement.
+
+À ce stade :
+
+Le paiement n’est pas encore validé.
+
+Le QR code n’existe pas.
+
+Aucune session Wi-Fi n’est active.
+
+3️⃣ Admin confirme le paiement
+
+L’admin se connecte au dashboard React.
+
+Il voit la liste des paiements PENDING.
+
+Il clique “Confirmer” → change le statut en SUCCESS.
+
+4️⃣ Backend crée la session Wi-Fi
+
+Quand le statut passe à SUCCESS :
+
+Django crée un objet WifiSession :
+
+mac_address = MAC généré pour ce paiement
+
+phone = numéro de l’utilisateur
+
+end_time = maintenant + durée payée (24h ou 48h)
+
+is_active = True
+
+Optionnel : MikroTik est notifié via script ou API pour activer la session sur le hotspot.
+
+Le QR code est maintenant généré et disponible dans l’app.
+
+5️⃣ App affiche le QR code
+
+L’utilisateur revient sur l’app.
+
+L’app récupère la session validée et affiche le QR code correspondant au MAC.
+
+L’utilisateur peut scanner ce QR code depuis un autre appareil connecté au hotspot, ou le MAC est utilisé directement pour autoriser l’accès Wi-Fi.
+
+6️⃣ Authentification Wi-Fi
+
+Le hotspot MikroTik reçoit la requête de connexion.
+
+MikroTik vérifie le MAC auprès du backend ou via le script local.
+
+Si le MAC est valide et que la session n’est pas expirée → l’utilisateur a accès à Internet.
+
+Sinon → accès refusé.
+
+7️⃣ Expiration automatique
+
+Django ou MikroTik fait tourner un cron :
+
+Vérifie end_time des sessions.
+
+Désactive les sessions expirées (is_active = False).
+
+L’utilisateur perd automatiquement l’accès à Internet après la durée payée.
+
+Résumé du rôle de chaque acteur
+Acteur	Rôle
+Utilisateur	Entre son numéro, choisit le montant, clique sur Wave, scanne le QR code
+App React Native	Interface + redirection Wave + affichage QR code après validation
+Backend Django	Enregistre paiement, génère MAC, valide paiement admin, crée session Wi-Fi, fournit QR code
+Admin Dashboard	Confirme les paiements PENDING → passe à SUCCESS
+MikroTik / Hotspot	Vérifie le MAC et la session → autorise ou bloque l’accès Internet
+
+💡 Important :
+
+Tant que l’admin n’a pas confirmé → aucune session n’est créée → aucun QR code → pas d’accès Wi-Fi.
+
+Chaque utilisateur a un MAC unique pour que la session soit individuelle.
+
+La vérification côté MikroTik est la dernière couche de sécurité contre le partage ou le spoofing de MAC.
+
+
+
+APP MOBILE
+   |
+   | (QR CODE)
+   v
+PAGE WEB PUBLIQUE (Django)
+   |
+   v
+BACKEND (WifiSession)
