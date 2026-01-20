@@ -42,6 +42,15 @@ export default function Payment() {
       setTimeout(() => setShowToast(false), 2500);
       return;
     }
+
+    // 🔹 doit commencer par 07, 05 ou 01
+    if (!/^(07|05|01)/.test(cleanPhone)) {
+      setToastMessage("Phone number is not correct !");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2500);
+      return;
+    }
+
     setPhone(cleanPhone);
 
     try {

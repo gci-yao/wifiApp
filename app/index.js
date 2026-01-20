@@ -22,7 +22,7 @@ const ROUTERS = {
       latitude: 5.345,
       longitude: -4.012,
       online: true,
-      capacity: 65,
+      capacity: 90,
       mac: "MAC-A1-1234",
     },
     {
@@ -152,19 +152,30 @@ const ROUTERS = {
 
 const COMMUNES = Object.keys(ROUTERS).sort();
 
+// 🤖 IA — choisir le meilleur routeur
+function pickBestRouter(routers) {
+  return routers
+    .filter((r) => r.online)
+    .map((r) => ({ ...r, score: r.capacity * 2 }))
+    .sort((a, b) => b.score - a.score)[0];
+}
+
 export default function Index() {
   const router = useRouter();
   const [selectedCommune, setSelectedCommune] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [recommendedRouter, setRecommendedRouter] = useState(null);
 
-  // Ouvrir modal
   const openCommune = (commune) => {
     setSelectedCommune(commune);
+
+    const best = pickBestRouter(ROUTERS[commune] || []);
+    setRecommendedRouter(best || null);
+
     setModalVisible(true);
   };
 
-  // Cliquer sur routeur → payment
   const selectRouter = (routerData) => {
     router.push({
       pathname: "/payment",
@@ -173,7 +184,6 @@ export default function Index() {
     setModalVisible(false);
   };
 
-  // Rafraîchir
   const onRefresh = () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 1000);
@@ -196,11 +206,7 @@ export default function Index() {
         duration={800}
         style={{ alignItems: "center", marginTop: 60 }}
       >
-        {/* Exemple pour réseau absent */}
         <Text style={{ fontSize: 85 }}>📡</Text>
-
-        {/* Exemple pour signal faible */}
-        {/* <Text style={{ fontSize: 60 }}>📶</Text> */}
       </Animatable.View>
 
       <Animatable.Text animation="fadeInDown" style={styles.title}>
@@ -226,7 +232,7 @@ export default function Index() {
         ))}
       </View>
 
-      {/* MODAL SUPERPOSÉ EN DOUCEUR */}
+      {/* MODAL */}
       {modalVisible && (
         <View style={styles.modalOverlay}>
           <Animatable.View
@@ -236,6 +242,35 @@ export default function Index() {
           >
             <Text style={styles.modalTitle}>Routers in {selectedCommune}</Text>
 
+            {/* 🤖 IA RECOMMANDATION */}
+            {recommendedRouter && (
+              <Animatable.View animation="fadeIn" style={styles.aiBox}>
+                <Text style={styles.aiTitle}>🤖 Recommended for you</Text>
+
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <MaterialIcons name="router" size={26} color="#25D366" />
+                  <View style={{ marginLeft: 10 }}>
+                    <Text style={styles.aiRouterName}>
+                      {recommendedRouter.name}
+                    </Text>
+                    <Text style={styles.aiMeta}>
+                      Capacité: {recommendedRouter.capacity}% • 🟢 Online
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.aiButton}
+                  onPress={() => selectRouter(recommendedRouter)}
+                >
+                  <Text style={{ color: "#0b141a", fontWeight: "bold" }}>
+                    Log in automatically
+                  </Text>
+                </TouchableOpacity>
+              </Animatable.View>
+            )}
+
+            {/* 🗺️ MAP */}
             <MapView
               style={styles.map}
               initialRegion={{
@@ -376,6 +411,7 @@ const styles = StyleSheet.create({
     color: "#25D366",
     marginBottom: 5,
   },
+
   routerBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -392,6 +428,27 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 12,
     width: "50%",
+    alignItems: "center",
+  },
+
+  // 🤖 Styles IA (isolés)
+  aiBox: {
+    backgroundColor: "#0f1f25",
+    borderRadius: 18,
+    padding: 15,
+    width: "100%",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#25D366",
+  },
+  aiTitle: { color: "#25D366", fontWeight: "bold", marginBottom: 8 },
+  aiRouterName: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  aiMeta: { color: "#ccc", fontSize: 13 },
+  aiButton: {
+    marginTop: 10,
+    backgroundColor: "#25D366",
+    padding: 10,
+    borderRadius: 12,
     alignItems: "center",
   },
 });
