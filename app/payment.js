@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import QRCode from "react-native-qrcode-svg";
@@ -189,19 +190,33 @@ export default function Payment() {
         delay={200}
         style={styles.buttonContainer}
       >
-        {(!paymentId || success) && (
-          <>
-            <TouchableOpacity style={styles.btn} onPress={() => pay(200)}>
-              <Text style={styles.btnText}>🔥 200F – 24h</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.btn, styles.btnSecondary]}
-              onPress={() => pay(400)}
-            >
-              <Text style={styles.btnText}>🚀 400F – 48h</Text>
-            </TouchableOpacity>
-          </>
+        {!paymentId && (
+          <View style={styles.buttonGrid}>
+            {[200, 400, 500, 1000, 3000, 5000].map((amount, idx) => (
+              <TouchableOpacity
+                key={amount}
+                style={[
+                  styles.btn,
+                  idx % 2 === 1 && styles.btnSecondary, // couleur secondaire pour alterné si tu veux
+                ]}
+                onPress={() => pay(amount)}
+              >
+                <Text style={styles.btnText}>
+                  {amount === 200
+                    ? "🔥 200F – 24h"
+                    : amount === 400
+                      ? "🚀 400F – 48h"
+                      : amount === 500
+                        ? "💎 500F – 72h"
+                        : amount === 1000
+                          ? "⚡ 1000F – 168h"
+                          : amount === 3000
+                            ? "🏆 3000F – 720h"
+                            : "🌟 5000F – 1140h"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
 
         {paymentId && !success && (
@@ -210,6 +225,7 @@ export default function Payment() {
           </TouchableOpacity>
         )}
       </Animatable.View>
+
       {/* ⏳ Attente confirmation admin */}
       {waitingAdmin && !success && (
         <Animatable.View
@@ -228,11 +244,39 @@ export default function Payment() {
 
       {/* QR code seulement si admin a confirmé */}
       {success && mac && (
-        <Animatable.View animation="zoomIn" style={styles.qrContainer}>
-          <Text style={styles.qrTitle}>Your Wi-Fi QR :</Text>
-          <QRCode value={mac} size={200} />
-          <Text style={styles.macText}>{mac}</Text>
-        </Animatable.View>
+        <>
+          <View style={styles.buttonGrid}>
+            {[200, 400, 500, 1000, 3000, 5000].map((amount, idx) => (
+              <TouchableOpacity
+                key={amount}
+                style={[
+                  styles.btn,
+                  idx % 2 === 1 && styles.btnSecondary, // couleur secondaire pour alterné si tu veux
+                ]}
+                onPress={() => pay(amount)}
+              >
+                <Text style={styles.btnText}>
+                  {amount === 200
+                    ? "🔥 200F – 24h"
+                    : amount === 400
+                      ? "🚀 400F – 48h"
+                      : amount === 500
+                        ? "💎 500F – 72h"
+                        : amount === 1000
+                          ? "⚡ 1000F – 168h"
+                          : amount === 3000
+                            ? "🏆 3000F – 720h"
+                            : "🌟 5000F – 1140h"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Animatable.View animation="zoomIn" style={styles.qrContainer}>
+            <Text style={styles.qrTitle}>Your Wi-Fi QR :</Text>
+            <QRCode value={mac} size={200} />
+            <Text style={styles.macText}>{mac}</Text>
+          </Animatable.View>
+        </>
       )}
     </ScrollView>
   );
@@ -267,17 +311,24 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
+  buttonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between", // espace entre les colonnes
+    width: "100%",
+  },
   btn: {
-    backgroundColor: "#25d36592",
+    width: "48%", // deux boutons par ligne
+    backgroundColor: "#075e5423",
     paddingVertical: 18,
-    borderRadius: 200,
-    width: "50%",
+    borderRadius: 10,
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 15,
   },
   btnSecondary: {
-    backgroundColor: "#128C7E",
+    backgroundColor: "#075e5434",
   },
+
   confirmBtn: {
     backgroundColor: "#075e54c8",
     paddingVertical: 18,
