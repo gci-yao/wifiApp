@@ -22,6 +22,7 @@ export default function Payment() {
   const [mac, setMac] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [failed, setFailed] = useState("");
   const [waitingAdmin, setWaitingAdmin] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -78,7 +79,15 @@ export default function Payment() {
         setLoading(false);
         return;
       }
-
+      if (data.status === "FAILED") {
+        setToastMessage(
+          "You have not made the payment ❌ Or call customer service for more details: 0706836722",
+        );
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        setLoading(false);
+        return;
+      }
       setPaymentId(data.payment_id);
       setMac(data.mac);
 
@@ -98,7 +107,7 @@ export default function Payment() {
 
     try {
       setLoading(true);
-      setWaitingAdmin(true); // ⏳ on affiche le spinner d’attente
+      setWaitingAdmin(true);
 
       const res = await fetch(
         "http://192.168.87.41:8002/api/payment/confirm/",
@@ -112,20 +121,37 @@ export default function Payment() {
       const data = await res.json();
       setLoading(false);
 
+      // ❌ ADMIN A REFUSÉ
+      if (data.status === "FAILED") {
+        setWaitingAdmin(false);
+        setToastMessage(
+          "You have not made the payment ❌ Or call customer service for more details: 0706836722",
+        );
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 10000);
+        setPaymentId(null);
+        setMac(null);
+        setLoading(false);
+        return;
+      }
+
+      // ⏳ ENCORE EN ATTENTE
+      if (data.status === "PENDING") {
+        setTimeout(confirmPayment, 3000);
+        return;
+      }
+
+      // ✅ CONFIRMÉ
       if (data.success) {
         setWaitingAdmin(false);
+        setMac(data.mac);
         setSuccess(true);
-      } else {
-        // admin pas encore confirmé → on reste en attente
-        setTimeout(confirmPayment, 4000); // 🔁 recheck auto toutes les 4s
+        return;
       }
     } catch (e) {
       setLoading(false);
       setWaitingAdmin(false);
-      Alert.alert(
-        "Error of verification",
-        "Payment is not possible verified !",
-      );
+      Alert.alert("Error of verification", "Payment could not be verified!");
     }
   };
 
