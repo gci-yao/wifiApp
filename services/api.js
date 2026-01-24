@@ -13,7 +13,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://192.168.87.41:8002/", // Ton IP backend Django
+  baseURL: "http://192.168.87.41:8000/", // Ton IP backend Django
 });
 
 export default api;

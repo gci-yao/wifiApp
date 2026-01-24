@@ -17,131 +17,114 @@ import QRCode from "react-native-qrcode-svg";
 
 export default function Payment() {
   const { commune, router_name } = useLocalSearchParams();
+
   const [phone, setPhone] = useState("");
   const [paymentId, setPaymentId] = useState(null);
   const [mac, setMac] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [failed, setFailed] = useState("");
   const [waitingAdmin, setWaitingAdmin] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [selectedAmount, setSelectedAmount] = useState(null);
 
   // 🔹 INIT PAIEMENT
   const pay = async (amount) => {
-    const cleanPhone = phone.replace(/\s+/g, ""); // enlève espaces
-
-    if (!cleanPhone) {
-      setToastMessage("Please enter your mobile number");
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2500);
-      return;
-    }
+    setSuccess(false);
+    const cleanPhone = phone.replace(/\s+/g, "");
+    setSelectedAmount(amount);
 
     if (!/^\d{10}$/.test(cleanPhone)) {
-      setToastMessage("Phone number must contain exactly 10 digits");
+      setToastMessage("Phone number must contain 10 digits");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2500);
       return;
     }
 
-    // 🔹 doit commencer par 07, 05 ou 01
     if (!/^(07|05|01)/.test(cleanPhone)) {
-      setToastMessage("Phone number is not correct !");
+      setToastMessage("Phone number is not correct!");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2500);
       return;
     }
-
-    setPhone(cleanPhone);
 
     try {
       setLoading(true);
-      setSuccess(false);
 
       const res = await fetch(
-        "http://192.168.87.41:8002/api/payment/init_wave/",
+        "http://192.168.87.41:8000/api/payment/init_wave/",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            phone,
-            amount,
-            commune,
-            router_name,
+            phone: cleanPhone,
+            amount: amount,
+            router_name: router_name,
+            commune: commune,
           }),
         },
       );
 
       const data = await res.json();
+
       if (data.error) {
-        Alert.alert("Erreur", data.error);
-        setLoading(false);
-        return;
-      }
-      if (data.status === "FAILED") {
-        setToastMessage(
-          "You have not made the payment ❌ Or call customer service for more details: 0706836722",
-        );
+        setToastMessage(data.error);
         setShowToast(true);
-        setTimeout(() => setShowToast(false), 3500);
+        setTimeout(() => setShowToast(false), 3000);
         setLoading(false);
         return;
       }
+
       setPaymentId(data.payment_id);
       setMac(data.mac);
-
-      // Redirige vers Wave
       Linking.openURL(data.wave_url);
-
       setLoading(false);
     } catch (e) {
       setLoading(false);
-      Alert.alert("Server error", "Payment could not is go !");
+      Alert.alert("Server error", "Payment could not go!");
     }
   };
 
-  // 🔹 CONFIRMATION DU PAIEMENT (après validation admin)
+  // 🔹 CONFIRMATION DU PAIEMENT
   const confirmPayment = async () => {
-    if (!paymentId) return;
+    if (!paymentId || !selectedAmount) return;
 
     try {
       setLoading(true);
       setWaitingAdmin(true);
 
       const res = await fetch(
-        "http://192.168.87.41:8002/api/payment/confirm/",
+        "http://192.168.87.41:8000/api/payment/confirm_wave/",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ payment_id: paymentId }),
+          body: JSON.stringify({
+            payment_id: paymentId,
+            commune: commune,
+          }),
         },
       );
 
       const data = await res.json();
       setLoading(false);
 
-      // ❌ ADMIN A REFUSÉ
       if (data.status === "FAILED") {
         setWaitingAdmin(false);
         setToastMessage(
-          "You have not made the payment ❌ Or call customer service for more details: 0706836722",
+          "Payment failed ❌ Or call customer service: 0706836722",
         );
         setShowToast(true);
         setTimeout(() => setShowToast(false), 10000);
         setPaymentId(null);
         setMac(null);
-        setLoading(false);
         return;
       }
 
-      // ⏳ ENCORE EN ATTENTE
       if (data.status === "PENDING") {
         setTimeout(confirmPayment, 3000);
         return;
       }
 
-      // ✅ CONFIRMÉ
       if (data.success) {
         setWaitingAdmin(false);
         setMac(data.mac);
@@ -151,7 +134,7 @@ export default function Payment() {
     } catch (e) {
       setLoading(false);
       setWaitingAdmin(false);
-      Alert.alert("Error of verification", "Payment could not be verified!");
+      Alert.alert("Verification error", "Payment could not be verified!");
     }
   };
 
@@ -167,6 +150,7 @@ export default function Payment() {
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animatable.View>
       )}
+
       <Animatable.View
         animation={success ? "fadeIn" : undefined}
         iterationCount={success ? "infinite" : 1}
@@ -176,41 +160,32 @@ export default function Payment() {
           <MaterialIcons
             name="wifi"
             size={80}
-            color={success ? "#00ff00" : "#103d0361"} // 🟢 actif / normal
+            color={success ? "#00ff0080" : "#103d0361"}
           />
         </Text>
       </Animatable.View>
 
       <Animatable.Text
         animation="fadeInDown"
-        style={[
-          styles.title,
-          success && { color: "#00ff00" }, // 🟢 actif
-        ]}
+        style={[styles.title, success && { color: "#00ff0080" }]}
       >
         greenhatah Wi-Fi Access
       </Animatable.Text>
 
-      {/* Input numéro de téléphone */}
       <Animatable.View animation="fadeInUp" style={styles.inputContainer}>
         <TextInput
           value={phone}
           onChangeText={(v) => setPhone(v.replace(/[^0-9]/g, "").slice(0, 10))}
-          // keyboardType="numeric"
           maxLength={10}
           placeholder="For example : 0706050403"
-          placeholderTextColor="#cccccc38"
+          placeholderTextColor="#0511144b"
           keyboardType="phone-pad"
-          style={[
-            styles.input,
-            success && { color: "#00ff00", fontWeight: "bold" }, // 🟢 actif
-          ]}
+          style={[styles.input, success && { color: "#23663495" }]}
         />
       </Animatable.View>
 
       {loading && <ActivityIndicator size="large" color="#25d365dc" />}
 
-      {/* Boutons paiement */}
       <Animatable.View
         animation="fadeInUp"
         delay={200}
@@ -221,10 +196,7 @@ export default function Payment() {
             {[200, 400, 500, 1000, 3000, 5000].map((amount, idx) => (
               <TouchableOpacity
                 key={amount}
-                style={[
-                  styles.btn,
-                  idx % 2 === 1 && styles.btnSecondary, // couleur secondaire pour alterné si tu veux
-                ]}
+                style={[styles.btn, idx % 2 === 1 && styles.btnSecondary]}
                 onPress={() => pay(amount)}
               >
                 <Text style={styles.btnText}>
@@ -252,7 +224,6 @@ export default function Payment() {
         )}
       </Animatable.View>
 
-      {/* ⏳ Attente confirmation admin */}
       {waitingAdmin && !success && (
         <Animatable.View
           animation="pulse"
@@ -260,25 +231,21 @@ export default function Payment() {
           style={{ marginTop: 30, alignItems: "center" }}
         >
           <ActivityIndicator size="large" color="#25D366" />
-          <Text style={{ color: "#fff", marginTop: 15, textAlign: "center" }}>
-            You are really sure of payment ? 💳{"\n"}
-            Please awaiting , Validation in pending by the IA , …{"\n"}
-            Thanks of your await ⏳
+          <Text
+            style={{ color: "#0e4f6dff", marginTop: 15, textAlign: "center" }}
+          >
+            Please wait for payment confirmation… ⏳
           </Text>
         </Animatable.View>
       )}
 
-      {/* QR code seulement si admin a confirmé */}
       {success && mac && (
         <>
           <View style={styles.buttonGrid}>
             {[200, 400, 500, 1000, 3000, 5000].map((amount, idx) => (
               <TouchableOpacity
                 key={amount}
-                style={[
-                  styles.btn,
-                  idx % 2 === 1 && styles.btnSecondary, // couleur secondaire pour alterné si tu veux
-                ]}
+                style={[styles.btn, idx % 2 === 1 && styles.btnSecondary]}
                 onPress={() => pay(amount)}
               >
                 <Text style={styles.btnText}>
@@ -314,12 +281,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 30,
-    backgroundColor: "#0b141a",
+    backgroundColor: "#e1f5fe",
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#103d0366",
+    color: "#0277bd",
     marginBottom: 30,
   },
   inputContainer: {
@@ -327,8 +294,8 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   input: {
-    backgroundColor: "#1b2a30",
-    color: "#fff",
+    backgroundColor: "#81d4fa85",
+    color: "#000",
     padding: 15,
     borderRadius: 20,
     fontSize: 16,
@@ -340,23 +307,22 @@ const styles = StyleSheet.create({
   buttonGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between", // espace entre les colonnes
+    justifyContent: "space-between",
     width: "100%",
   },
   btn: {
-    width: "48%", // deux boutons par ligne
-    backgroundColor: "#075e5423",
+    width: "48%",
+    backgroundColor: "#81d4fa",
     paddingVertical: 18,
     borderRadius: 10,
     alignItems: "center",
     marginBottom: 15,
   },
   btnSecondary: {
-    backgroundColor: "#075e5434",
+    backgroundColor: "#81d4fa",
   },
-
   confirmBtn: {
-    backgroundColor: "#075e54c8",
+    backgroundColor: "#29b6f6",
     paddingVertical: 18,
     borderRadius: 20,
     width: "60%",
@@ -389,7 +355,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1c2b33",
+    backgroundColor: "#054260ff",
     paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 25,
@@ -398,7 +364,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
-
   toastText: {
     color: "#fff",
     marginLeft: 10,

@@ -342,26 +342,26 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#090620ff",
+    backgroundColor: "#e1f5fe", // Bleu clair style Telegram
     alignItems: "center",
     padding: 30,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#9a599bff",
+    color: "#0277bd", // Bleu foncé Telegram
     marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 18,
-    color: "#7deaadff",
+    color: "#0288d1", // Bleu intermédiaire
     marginBottom: 20,
     textAlign: "center",
   },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center" },
   communeBtn: {
-    backgroundColor: "#0f020d7c",
+    backgroundColor: "#b3e5fc", // Boutons communes style Telegram
     width: 135,
     height: 85,
     margin: 15,
@@ -369,8 +369,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  communeText: { color: "#907989ff", fontWeight: "bold", textAlign: "center" },
+  communeText: { color: "#01579b", fontWeight: "bold", textAlign: "center" },
 
+  // Modal inchangé
   modalOverlay: {
     position: "absolute",
     top: 0,
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#1c2b33",
+    backgroundColor: "#345c6fff",
     width: "90%",
     borderRadius: 25,
     padding: 15,
@@ -412,10 +413,11 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
 
+  // Buttons router A1, A2, Close, IA box inchangés
   routerBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0b141a",
+    backgroundColor: "#173448ff",
     padding: 10,
     borderRadius: 12,
     marginVertical: 5,
@@ -431,9 +433,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // 🤖 Styles IA (isolés)
+  // 🤖 Styles IA (inchangés)
   aiBox: {
-    backgroundColor: "#0f1f25",
+    backgroundColor: "#173448ff",
     borderRadius: 18,
     padding: 15,
     width: "100%",
