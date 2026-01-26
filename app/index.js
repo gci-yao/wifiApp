@@ -1,197 +1,148 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dimensions,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import MapView, { Callout, Marker } from "react-native-maps";
 import QRCode from "react-native-qrcode-svg";
+import api from "../services/api";
 
-// 🌍 Données simulées complètes
-const ROUTERS = {
-  Cocody: [
-    {
-      name: "Router A1",
-      latitude: 5.345,
-      longitude: -4.012,
-      online: true,
-      capacity: 90,
-      mac: "MAC-A1-1234",
-    },
-    {
-      name: "Router A2",
-      latitude: 5.348,
-      longitude: -4.015,
-      online: false,
-      capacity: 30,
-      mac: "MAC-A2-5678",
-    },
-    {
-      name: "Router A3",
-      latitude: 5.35,
-      longitude: -4.018,
-      online: true,
-      capacity: 50,
-      mac: "MAC-A3-9012",
-    },
-  ],
-  Yopougon: [
-    {
-      name: "Router Y1",
-      latitude: 5.383,
-      longitude: -4.05,
-      online: true,
-      capacity: 90,
-      mac: "MAC-Y1-9012",
-    },
-    {
-      name: "Router Y2",
-      latitude: 5.386,
-      longitude: -4.053,
-      online: false,
-      capacity: 20,
-      mac: "MAC-Y2-3456",
-    },
-  ],
-  Plateau: [
-    {
-      name: "Router P1",
-      latitude: 5.345,
-      longitude: -4.012,
-      online: true,
-      capacity: 75,
-      mac: "MAC-P1-3456",
-    },
-  ],
-  Abobo: [
-    {
-      name: "Router B1",
-      latitude: 5.35,
-      longitude: -4.06,
-      online: true,
-      capacity: 60,
-      mac: "MAC-B1-1234",
-    },
-    {
-      name: "Router B2",
-      latitude: 5.352,
-      longitude: -4.062,
-      online: false,
-      capacity: 25,
-      mac: "MAC-B2-5678",
-    },
-  ],
-  Adjamé: [
-    {
-      name: "Router J1",
-      latitude: 5.34,
-      longitude: -4.04,
-      online: false,
-      capacity: 10,
-      mac: "MAC-J1-5678",
-    },
-  ],
-  Treichville: [
-    {
-      name: "Router T1",
-      latitude: 5.32,
-      longitude: -4.05,
-      online: true,
-      capacity: 80,
-      mac: "MAC-T1-9012",
-    },
-  ],
-  Marcory: [
-    {
-      name: "Router M1",
-      latitude: 5.31,
-      longitude: -4.06,
-      online: true,
-      capacity: 70,
-      mac: "MAC-M1-3456",
-    },
-  ],
-  Koumassi: [
-    {
-      name: "Router K1",
-      latitude: 5.3,
-      longitude: -4.07,
-      online: false,
-      capacity: 40,
-      mac: "MAC-K1-7890",
-    },
-  ],
-  "Port-Bouët": [
-    {
-      name: "Router PB1",
-      latitude: 5.29,
-      longitude: -4.08,
-      online: true,
-      capacity: 55,
-      mac: "MAC-PB1-2345",
-    },
-  ],
-  Anyama: [
-    {
-      name: "Router AN1",
-      latitude: 5.28,
-      longitude: -4.09,
-      online: false,
-      capacity: 35,
-      mac: "MAC-AN1-6789",
-    },
-  ],
-};
-
-const COMMUNES = Object.keys(ROUTERS).sort();
-
-// 🤖 IA — choisir le meilleur routeur
+// IA — choisir le meilleur router
 function pickBestRouter(routers) {
+  // Priorité aux routers en ligne
   return routers
-    .filter((r) => r.online)
-    .map((r) => ({ ...r, score: r.capacity * 2 }))
+    .filter((r) => r.health === "ok")
+    .map((r) => ({ ...r, score: r.capacity || 50 }))
     .sort((a, b) => b.score - a.score)[0];
 }
 
 export default function Index() {
   const router = useRouter();
+
+  const [routersByCommune, setRoutersByCommune] = useState({});
+  const [communes, setCommunes] = useState([]);
+
   const [selectedCommune, setSelectedCommune] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recommendedRouter, setRecommendedRouter] = useState(null);
 
+  const [search, setSearch] = useState("");
+  const [preferredRouter, setPreferredRouter] = useState(null);
+
+  // Charger routers depuis backend réel
+  const loadRouters = async () => {
+    try {
+      const res = await api.get("api/router/");
+      const data = res.data;
+
+      const normalized = data.map((r, idx) => ({
+        id: r.id,
+        name: r.name,
+        latitude: r.latitude ?? 5.345 + idx * 0.001,
+        longitude: r.longitude ?? -4.012 + idx * 0.001,
+        health: r.health,
+        capacity: r.capacity ?? 50,
+        mac: r.ip,
+        location: r.location ?? "Unknown",
+      }));
+
+      const grouped = {};
+      normalized.forEach((r) => {
+        if (!grouped[r.location]) grouped[r.location] = [];
+        grouped[r.location].push(r);
+      });
+
+      setRoutersByCommune(grouped);
+
+      const communeKeys = Object.keys(grouped).sort();
+      setCommunes(communeKeys);
+
+      if (!selectedCommune && communeKeys.length > 0) {
+        setSelectedCommune(communeKeys[0]); // éviter filteredRouters vide
+      }
+    } catch (e) {
+      console.log("Erreur chargement routers:", e);
+    }
+  };
+
+  // Charger router préféré
+  useEffect(() => {
+    (async () => {
+      const saved = await AsyncStorage.getItem("PREFERRED_ROUTER");
+      if (saved) setPreferredRouter(JSON.parse(saved));
+    })();
+
+    loadRouters();
+  }, []);
+
   const openCommune = (commune) => {
     setSelectedCommune(commune);
+    setSearch("");
 
-    const best = pickBestRouter(ROUTERS[commune] || []);
+    const routers = routersByCommune[commune] || [];
+
+    let best = null;
+    if (preferredRouter) {
+      best = routers.find((r) => r.name === preferredRouter.name);
+    }
+    if (!best) {
+      best = pickBestRouter(routers);
+    }
+
     setRecommendedRouter(best || null);
-
     setModalVisible(true);
   };
 
-  const selectRouter = (routerData) => {
+  const selectRouter = async (routerData) => {
+    await AsyncStorage.setItem("PREFERRED_ROUTER", JSON.stringify(routerData));
+
     router.push({
       pathname: "/payment",
-      params: { commune: selectedCommune, router_name: routerData.name },
+      params: {
+        commune: selectedCommune,
+        router_name: routerData.name,
+      },
     });
+
     setModalVisible(false);
   };
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await loadRouters();
+    setRefreshing(false);
   };
 
   const filteredRouters = selectedCommune
-    ? [...ROUTERS[selectedCommune]].sort((a, b) => a.name.localeCompare(b.name))
+    ? (routersByCommune[selectedCommune] || []).filter((r) =>
+        r.name.toLowerCase().includes(search.toLowerCase()),
+      )
     : [];
+
+  const initialRegion = filteredRouters[0]
+    ? {
+        latitude: filteredRouters[0].latitude,
+        longitude: filteredRouters[0].longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }
+    : {
+        latitude: 5.345,
+        longitude: -4.012,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
 
   return (
     <ScrollView
@@ -200,7 +151,6 @@ export default function Index() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* TITRE */}
       <Animatable.View
         animation="fadeInDown"
         duration={800}
@@ -217,9 +167,8 @@ export default function Index() {
         Choose your commune
       </Animatable.Text>
 
-      {/* GRILLE COMMUNES */}
       <View style={styles.grid}>
-        {COMMUNES.map((commune, idx) => (
+        {communes.map((commune, idx) => (
           <Animatable.View key={commune} animation="zoomIn" delay={idx * 50}>
             <TouchableOpacity
               style={styles.communeBtn}
@@ -232,7 +181,6 @@ export default function Index() {
         ))}
       </View>
 
-      {/* MODAL */}
       {modalVisible && (
         <View style={styles.modalOverlay}>
           <Animatable.View
@@ -242,7 +190,14 @@ export default function Index() {
           >
             <Text style={styles.modalTitle}>Routers in {selectedCommune}</Text>
 
-            {/* 🤖 IA RECOMMANDATION */}
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="🔍 Search router by name..."
+              placeholderTextColor="#ccc"
+              style={styles.searchInput}
+            />
+
             {recommendedRouter && (
               <Animatable.View animation="fadeIn" style={styles.aiBox}>
                 <Text style={styles.aiTitle}>🤖 Recommended for you</Text>
@@ -254,7 +209,10 @@ export default function Index() {
                       {recommendedRouter.name}
                     </Text>
                     <Text style={styles.aiMeta}>
-                      Capacité: {recommendedRouter.capacity}% • 🟢 Online
+                      Capacité: {recommendedRouter.capacity}% •{" "}
+                      {recommendedRouter.health === "ok"
+                        ? "🟢 Online"
+                        : "🔴 Offline"}
                     </Text>
                   </View>
                 </View>
@@ -270,59 +228,49 @@ export default function Index() {
               </Animatable.View>
             )}
 
-            {/* 🗺️ MAP */}
-            <MapView
-              style={styles.map}
-              initialRegion={{
-                latitude: filteredRouters[0]?.latitude || 5.345,
-                longitude: filteredRouters[0]?.longitude || -4.012,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-              }}
-            >
-              {filteredRouters.map((router) => (
+            <MapView style={styles.map} initialRegion={initialRegion}>
+              {filteredRouters.map((r) => (
                 <Marker
-                  key={router.name}
-                  coordinate={{
-                    latitude: router.latitude,
-                    longitude: router.longitude,
-                  }}
+                  key={r.name}
+                  coordinate={{ latitude: r.latitude, longitude: r.longitude }}
                 >
                   <Animatable.View
-                    animation={router.online ? "flash" : undefined}
+                    animation={r.health === "ok" ? "flash" : undefined}
                     iterationCount="infinite"
                     style={[
                       styles.marker,
                       {
-                        backgroundColor: router.online ? "#00ff00" : "#ff4d4d",
+                        backgroundColor:
+                          r.health === "ok" ? "#00ff00" : "#ff4d4d",
                       },
                     ]}
                   />
                   <Callout>
                     <View style={styles.callout}>
-                      <Text style={styles.routerName}>{router.name}</Text>
+                      <Text style={styles.routerName}>{r.name}</Text>
                       <Text>
-                        Status: {router.online ? "🟢 Online" : "🔴 Offline"}
+                        Status: {r.health === "ok" ? "🟢 Online" : "🔴 Offline"}
                       </Text>
-                      {router.online && <QRCode value={router.mac} size={80} />}
+                      {r.health === "ok" && <QRCode value={r.mac} size={80} />}
+                      <Text>Capacité: {r.capacity}%</Text>
                     </View>
                   </Callout>
                 </Marker>
               ))}
             </MapView>
 
-            {filteredRouters.map((router) => (
+            {filteredRouters.map((r) => (
               <TouchableOpacity
-                key={router.name}
+                key={r.name}
                 style={styles.routerBtn}
-                onPress={() => selectRouter(router)}
+                onPress={() => selectRouter(r)}
               >
                 <MaterialIcons
                   name="router"
                   size={24}
-                  color={router.online ? "#00ff00" : "#ff4d4d"}
+                  color={r.health === "ok" ? "#00ff00" : "#ff4d4d"}
                 />
-                <Text style={styles.routerText}>{router.name}</Text>
+                <Text style={styles.routerText}>{r.name}</Text>
               </TouchableOpacity>
             ))}
 
@@ -342,26 +290,26 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#e1f5fe", // Bleu clair style Telegram
+    backgroundColor: "#e1f5fe",
     alignItems: "center",
     padding: 30,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#0277bd", // Bleu foncé Telegram
+    color: "#0277bd",
     marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 18,
-    color: "#0288d1", // Bleu intermédiaire
+    color: "#0288d1",
     marginBottom: 20,
     textAlign: "center",
   },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center" },
   communeBtn: {
-    backgroundColor: "#b3e5fc", // Boutons communes style Telegram
+    backgroundColor: "#b3e5fc",
     width: 135,
     height: 85,
     margin: 15,
@@ -371,7 +319,6 @@ const styles = StyleSheet.create({
   },
   communeText: { color: "#01579b", fontWeight: "bold", textAlign: "center" },
 
-  // Modal inchangé
   modalOverlay: {
     position: "absolute",
     top: 0,
@@ -397,7 +344,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  map: { width: "100%", height: 200, borderRadius: 15, marginVertical: 10 },
+  searchInput: {
+    width: "100%",
+    backgroundColor: "#173448ff",
+    borderRadius: 12,
+    padding: 10,
+    color: "#fff",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#25D366",
+  },
+
+  map: { width: "100%", height: 250, borderRadius: 15, marginVertical: 10 },
   marker: {
     width: 18,
     height: 18,
@@ -413,7 +371,6 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
 
-  // Buttons router A1, A2, Close, IA box inchangés
   routerBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -433,7 +390,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // 🤖 Styles IA (inchangés)
   aiBox: {
     backgroundColor: "#173448ff",
     borderRadius: 18,

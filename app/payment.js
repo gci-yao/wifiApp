@@ -52,7 +52,7 @@ export default function Payment() {
       setLoading(true);
 
       const res = await fetch(
-        "http://192.168.87.41:8000/api/payment/init_wave/",
+        "http://10.219.53.41:8000/api/payment/init_wave/",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -94,7 +94,7 @@ export default function Payment() {
       setWaitingAdmin(true);
 
       const res = await fetch(
-        "http://192.168.87.41:8000/api/payment/confirm_wave/",
+        "http://10.219.53.41:8000/api/payment/confirm_wave/",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
